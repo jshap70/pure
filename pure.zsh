@@ -33,9 +33,9 @@ prompt_pure_human_time_to_var() {
 	local hours=$(( total_seconds / 60 / 60 % 24 ))
 	local minutes=$(( total_seconds / 60 % 60 ))
 	local seconds=$(( total_seconds % 60 ))
-	(( days > 0 )) && human+="${days}d "
-	(( hours > 0 )) && human+="${hours}h "
-	(( minutes > 0 )) && human+="${minutes}m "
+	(( days > 0 )) && human+="${days}d"
+	(( hours > 0 )) && human+="${hours}h"
+	(( minutes > 0 )) && human+="${minutes}m"
 	human+="${seconds}s"
 
 	# store human readable time in variable as specified by caller
@@ -115,11 +115,11 @@ prompt_pure_preprompt_render() {
 	local -a preprompt_parts
 
 	# Set the path.
-	preprompt_parts+=('%F{blue}%~%f')
+	preprompt_parts+=('%F{magenta}%~%f')
 
 	# Add git branch and dirty status info.
 	typeset -gA prompt_pure_vcs_info
-	if [[ -n $prompt_pure_vcs_info[branch] ]]; then
+	if [[ -n $prompt_pure_vcs_info[branch] ]] && [[ ${prompt_pure_vcs_info[top]} != $HOME ]] ; then
 		preprompt_parts+=("%F{$git_color}"'${prompt_pure_vcs_info[branch]}${prompt_pure_git_dirty}%f')
 	fi
 	# Git pull/push arrows.
@@ -294,7 +294,7 @@ prompt_pure_async_git_fetch() {
 		fi
 	' CHLD
 
-	command git -c gc.auto=0 fetch >/dev/null &
+	[ -z $PURE_PROMPT_NO_FETCH ] && command git -c gc.auto=0 fetch >/dev/null &
 	wait $! || return $fail_code
 
 	unsetopt monitor
@@ -542,11 +542,40 @@ prompt_pure_state_setup() {
 		unset MATCH MBEGIN MEND
 	fi
 
-	# show username@host if logged in through SSH
-	[[ -n $ssh_connection ]] && username='%F{242}%n@%m%f'
+	local render_host=false
 
-	# show username@host if root, with username in white
-	[[ $UID -eq 0 ]] && username='%F{white}%n%f%F{242}@%m%f'
+	# show username@host if logged in through SSH
+	[[ -n $ssh_connection ]] && username='%F{242}%n%f' && render_host=true
+
+	# show username@host if root, with username in red
+	[[ $UID -eq 0 ]] && username='%F{red}%n%f' && render_host=true
+
+	# hash host name if option is set
+	if [ "$render_host" = true ]; then
+		local hostcolor='green'
+		username+='@'
+
+		# use dynamic prompt host color
+		if [[ -z "${PURE_PROMPT_NO_HOST_COLOR_HASH}" ]]; then
+			if [[ -z "${PURE_PROMPT_HOST_COLOR}" ]]; then
+				# unfortunately cannot use '%m'
+				local host
+				if [[ ! -z "${PURE_PROMPT_HOSTNAME}" ]]; then
+					host="${PURE_PROMPT_HOSTNAME}"
+				elif [[ ! -z "${HOSTNAME%%.*}" ]]; then
+					host="${HOSTNAME%%.*}"
+				elif [[ ! -z "${HOST%%.*}" ]]; then
+					host="${HOST%%.*}"
+				else
+					host=$( hostname )
+				fi
+				hostcolor=$( color_hash "$host" )
+			else
+				hostcolor="${PURE_PROMPT_HOST_COLOR}"
+			fi
+		fi
+		username+="%F{$hostcolor}%m%f"
+	fi
 
 	typeset -gA prompt_pure_state
 	prompt_pure_state=(
@@ -577,6 +606,20 @@ prompt_pure_setup() {
 	autoload -Uz add-zsh-hook
 	autoload -Uz vcs_info
 	autoload -Uz async && async
+	#autoload -Uz color_hash
+
+	color_hash() {
+		setopt localoptions noshwordsplit
+		local str=$1
+		local integer val=0
+		for i in {1..${#str}}; do
+			local char=$str[$i]
+			(( val += $(( #char )) ))
+		done
+
+		(( val %= $(( ${PURE_PROMPT_HOST_COLOR_MAX:-14} + 1 - ${PURE_PROMPT_HOST_COLOR_MIN:-9} )) ))
+		echo $(( val + ${PURE_PROMPT_HOST_COLOR_MIN:-9} ))
+	}
 
 	# The add-zle-hook-widget function is not guaranteed
 	# to be available, it was added in Zsh 5.3.
@@ -598,7 +641,7 @@ prompt_pure_setup() {
 	PROMPT='%(12V.%F{242}%12v%f .)'
 
 	# prompt turns red if the previous command didn't exit with 0
-	PROMPT+='%(?.%F{magenta}.%F{red})${prompt_pure_state[prompt]}%f '
+	PROMPT+='%(?.%F{${PURE_PROMPT_COLOR:-magenta}}.%F{red})${prompt_pure_state[prompt]}%f '
 
 	# Store prompt expansion symbols for in-place expansion via (%). For
 	# some reason it does not work without storing them in a variable first.

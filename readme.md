@@ -2,6 +2,9 @@
 
 > Pretty, minimal and fast ZSH prompt
 
+jshap70's fork because zsh themes should be custom
+
+screenshot out of date
 <img src="screenshot.png" width="864">
 
 
