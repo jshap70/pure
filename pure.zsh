@@ -294,7 +294,7 @@ prompt_pure_async_git_fetch() {
 		fi
 	' CHLD
 
-	[ -z $PURE_PROMPT_NO_FETCH ] && command git -c gc.auto=0 fetch >/dev/null &
+	command git -c gc.auto=0 fetch >/dev/null &
 	wait $! || return $fail_code
 
 	unsetopt monitor
