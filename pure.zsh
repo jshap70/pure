@@ -88,7 +88,7 @@ prompt_pure_preexec() {
 		if [[ $2 =~ (git|hub)\ (.*\ )?($prompt_pure_git_fetch_pattern)(\ .*)?$ ]]; then
 			# we must flush the async jobs to cancel our git fetch in order
 			# to avoid conflicts with the user issued pull / fetch.
-			async_flush_jobs 'prompt_pure'
+			async_flush_jobs "prompt_pure"
 		fi
 	fi
 
@@ -294,8 +294,10 @@ prompt_pure_async_git_fetch() {
 		fi
 	' CHLD
 
-	command git -c gc.auto=0 fetch >/dev/null &
-	wait $! || return $fail_code
+	if [[ -z ${PURE_PROMPT_NO_FETCH} ]]; then
+		command git -c gc.auto=0 fetch >/dev/null &
+		wait $! || return $fail_code
+	fi
 
 	unsetopt monitor
 
